@@ -1,0 +1,66 @@
+{
+  // Weapons. The player starts with the highest `rarityWeight` weapon and can pick up others as
+  // drops (weighted by rarity — rarer weapons drop less often).
+  "weapons": [
+    {
+      "id": "pulse",
+      "displayName": "Pulse Rifle",
+      "sprite": "bolt",
+      "tint": "#FFE9A6",
+      "damage": 4,
+      "fireRate": 6,
+      "projectileSpeed": 16,
+      "projectileLifetime": 0.9,
+      "projectilesPerShot": 1,
+      "spreadDegrees": 0,
+      "pierce": 0,
+      "projectileRadius": 0.12,
+      "rarityWeight": 6
+    },
+    {
+      "id": "scatter",
+      "displayName": "Scattergun",
+      "sprite": "bolt",
+      "tint": "#FFC46B",
+      "damage": 2.5,
+      "fireRate": 2.2,
+      "projectileSpeed": 13,
+      "projectileLifetime": 0.55,
+      "projectilesPerShot": 6,
+      "spreadDegrees": 42,
+      "pierce": 0,
+      "projectileRadius": 0.11,
+      "rarityWeight": 3
+    },
+    {
+      "id": "lance",
+      "displayName": "Ion Lance",
+      "sprite": "bolt",
+      "tint": "#8AD4FF",
+      "damage": 7,
+      "fireRate": 3,
+      "projectileSpeed": 22,
+      "projectileLifetime": 1.1,
+      "projectilesPerShot": 1,
+      "spreadDegrees": 0,
+      "pierce": 3,
+      "projectileRadius": 0.14,
+      "rarityWeight": 2
+    },
+    {
+      "id": "nova",
+      "displayName": "Nova Burst",
+      "sprite": "bolt",
+      "tint": "#E58AFF",
+      "damage": 3.5,
+      "fireRate": 1.6,
+      "projectileSpeed": 11,
+      "projectileLifetime": 0.8,
+      "projectilesPerShot": 12,
+      "spreadDegrees": 360,
+      "pierce": 1,
+      "projectileRadius": 0.12,
+      "rarityWeight": 1
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "base",
+  "name": "VoidRunner Base Game",
+  "author": "xj16",
+  "version": "1.0.0",
+  "description": "The core VoidRunner content: enemies, weapons, rooms and waves. Every value here is data — copy this folder, change numbers, and you have a mod.",
+  "format": 1,
+  "dependencies": [],
+  "files": [
+    "enemies.json",
+    "weapons.json",
+    "rooms.json"
+  ]
+}

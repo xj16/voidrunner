@@ -1,0 +1,16 @@
+{
+    "name": "VoidRunner.Game",
+    "rootNamespace": "VoidRunner.Gameplay",
+    "references": [
+        "VoidRunner.Sim"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

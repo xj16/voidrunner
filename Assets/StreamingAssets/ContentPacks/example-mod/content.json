@@ -1,0 +1,81 @@
+{
+  // ---------------------------------------------------------------------------------------------
+  // Neon Swarm — an example mod. Because it lists "base" as a dependency, the loader loads base
+  // FIRST, then applies this file on top. Any id that matches a base id OVERRIDES it.
+  // ---------------------------------------------------------------------------------------------
+  "enemies": [
+    {
+      // OVERRIDE: make the base "swarmer" faster, tougher and hot-pink. Same id = replace.
+      "id": "swarmer",
+      "displayName": "Neon Swarmer",
+      "sprite": "circle",
+      "tint": "#FF3CAC",
+      "maxHealth": 7,
+      "moveSpeed": 4.2,
+      "contactDamage": 5,
+      "radius": 0.30,
+      "behaviour": "chase",
+      "scoreValue": 12,
+      "dropChance": 0.08
+    },
+    {
+      // NEW enemy that only exists in this mod.
+      "id": "prism",
+      "displayName": "Prism",
+      "sprite": "diamond",
+      "tint": "#3CFFE0",
+      "maxHealth": 18,
+      "moveSpeed": 2.4,
+      "contactDamage": 8,
+      "radius": 0.48,
+      "behaviour": "kite",
+      "scoreValue": 30,
+      "dropChance": 0.3
+    }
+  ],
+  "weapons": [
+    {
+      // NEW weapon: a fast piercing beam.
+      "id": "prism-beam",
+      "displayName": "Prism Beam",
+      "sprite": "bolt",
+      "tint": "#3CFFE0",
+      "damage": 5,
+      "fireRate": 8,
+      "projectileSpeed": 26,
+      "projectileLifetime": 1.0,
+      "projectilesPerShot": 1,
+      "spreadDegrees": 0,
+      "pierce": 5,
+      "projectileRadius": 0.10,
+      "rarityWeight": 2
+    }
+  ],
+  "waves": [
+    {
+      "id": "w_neon",
+      "groups": [
+        { "enemyId": "swarmer", "count": 14, "delay": 0.0 },
+        { "enemyId": "prism", "count": 3, "delay": 2.0 }
+      ]
+    }
+  ],
+  "rooms": [
+    {
+      // NEW room that uses both a base wave and this mod's new wave.
+      "id": "grid",
+      "displayName": "Neon Grid",
+      "width": 30,
+      "height": 17,
+      "backgroundTint": "#050014",
+      "waveIds": [ "w_neon", "w_skirmish" ],
+      "weight": 2,
+      "obstacles": [
+        { "x": -8, "y": 4, "width": 2, "height": 2 },
+        { "x": 8, "y": 4, "width": 2, "height": 2 },
+        { "x": -8, "y": -4, "width": 2, "height": 2 },
+        { "x": 8, "y": -4, "width": 2, "height": 2 }
+      ]
+    }
+  ]
+}

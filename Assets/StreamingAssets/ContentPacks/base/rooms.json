@@ -1,0 +1,72 @@
+{
+  // Rooms bundle a play area with the waves that can spawn there. Waves reference enemy ids.
+  // The run picks a room each floor (weighted), and difficulty scales automatically with depth.
+  "waves": [
+    {
+      "id": "w_intro",
+      "groups": [
+        { "enemyId": "drifter", "count": 4, "delay": 0.0 },
+        { "enemyId": "mote", "count": 2, "delay": 1.5 }
+      ]
+    },
+    {
+      "id": "w_swarm",
+      "groups": [
+        { "enemyId": "swarmer", "count": 10, "delay": 0.0 },
+        { "enemyId": "swarmer", "count": 8, "delay": 2.5 }
+      ]
+    },
+    {
+      "id": "w_skirmish",
+      "groups": [
+        { "enemyId": "drifter", "count": 3, "delay": 0.0 },
+        { "enemyId": "lancer", "count": 2, "delay": 1.0 },
+        { "enemyId": "wisp", "count": 2, "delay": 2.0 }
+      ]
+    },
+    {
+      "id": "w_boss",
+      "groups": [
+        { "enemyId": "warden", "count": 1, "delay": 0.0 },
+        { "enemyId": "swarmer", "count": 6, "delay": 3.0 }
+      ]
+    }
+  ],
+  "rooms": [
+    {
+      "id": "hangar",
+      "displayName": "Derelict Hangar",
+      "width": 26,
+      "height": 15,
+      "backgroundTint": "#0B0F1E",
+      "waveIds": [ "w_intro", "w_skirmish" ],
+      "weight": 3,
+      "obstacles": [
+        { "x": -6, "y": 3, "width": 2, "height": 2 },
+        { "x": 6, "y": -3, "width": 2, "height": 2 }
+      ]
+    },
+    {
+      "id": "reactor",
+      "displayName": "Reactor Core",
+      "width": 22,
+      "height": 13,
+      "backgroundTint": "#12091A",
+      "waveIds": [ "w_swarm", "w_skirmish" ],
+      "weight": 2,
+      "obstacles": [
+        { "x": 0, "y": 0, "width": 3, "height": 3 }
+      ]
+    },
+    {
+      "id": "vault",
+      "displayName": "The Vault",
+      "width": 28,
+      "height": 16,
+      "backgroundTint": "#1A0B0F",
+      "waveIds": [ "w_boss" ],
+      "weight": 1,
+      "obstacles": []
+    }
+  ]
+}

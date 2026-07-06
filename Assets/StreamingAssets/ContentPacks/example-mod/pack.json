@@ -1,0 +1,10 @@
+{
+  "id": "neon-swarm",
+  "name": "Neon Swarm",
+  "author": "community-example",
+  "version": "1.0.0",
+  "description": "An example community content pack. It depends on the base game, RE-BALANCES an existing enemy by re-declaring its id, and ADDS a brand-new enemy, weapon, wave and room — all without touching a single line of C#. Delete this folder to play vanilla.",
+  "format": 1,
+  "dependencies": [ "base" ],
+  "files": [ "content.json" ]
+}

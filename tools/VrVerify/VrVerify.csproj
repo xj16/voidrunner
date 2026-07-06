@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    vrverify — a tiny command-line tool that loads the game's content packs, replays a .vrplay file
+    headlessly through the deterministic simulation, and prints whether it reproduces the recorded
+    outcome. It shares the exact same engine-agnostic sources as the game (Assets/Scripts/Sim), so
+    "the game agrees with the tool" is guaranteed by construction.
+
+    Uses:
+      * Let players/tournaments verify a submitted replay/score without trusting the client.
+      * A second, end-to-end CI check (record a run, save it, verify it) beyond the unit tests.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>vrverify</AssemblyName>
+    <RootNamespace>VoidRunner.Tools</RootNamespace>
+    <NoWarn>$(NoWarn);CS0169;CS0649;CS0414</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Assets\Scripts\Sim\**\*.cs" />
+  </ItemGroup>
+
+</Project>

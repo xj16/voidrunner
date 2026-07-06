@@ -1,0 +1,85 @@
+{
+  // Enemies for the base game. `behaviour` is one of: chase, kite, wander, charger.
+  // `sprite` refers to a procedural shape (circle, square, triangle, diamond, ring) or a PNG you
+  // drop next to this file. `tint` is an HTML colour. Nothing here requires recompiling the game.
+  "enemies": [
+    {
+      "id": "drifter",
+      "displayName": "Drifter",
+      "sprite": "circle",
+      "tint": "#7FB4FF",
+      "maxHealth": 8,
+      "moveSpeed": 2.6,
+      "contactDamage": 6,
+      "radius": 0.42,
+      "behaviour": "chase",
+      "scoreValue": 10,
+      "dropChance": 0.12
+    },
+    {
+      "id": "swarmer",
+      "displayName": "Swarmer",
+      "sprite": "circle",
+      "tint": "#9DFF8A",
+      "maxHealth": 4,
+      "moveSpeed": 3.4,
+      "contactDamage": 4,
+      "radius": 0.30,
+      "behaviour": "chase",
+      "scoreValue": 8,
+      "dropChance": 0.06
+    },
+    {
+      "id": "lancer",
+      "displayName": "Lancer",
+      "sprite": "triangle",
+      "tint": "#FF8A5C",
+      "maxHealth": 10,
+      "moveSpeed": 2.2,
+      "contactDamage": 9,
+      "radius": 0.40,
+      "behaviour": "charger",
+      "scoreValue": 18,
+      "dropChance": 0.15
+    },
+    {
+      "id": "wisp",
+      "displayName": "Wisp",
+      "sprite": "diamond",
+      "tint": "#E58AFF",
+      "maxHealth": 14,
+      "moveSpeed": 2.0,
+      "contactDamage": 7,
+      "radius": 0.46,
+      "behaviour": "kite",
+      "scoreValue": 22,
+      "dropChance": 0.22
+    },
+    {
+      "id": "mote",
+      "displayName": "Mote",
+      "sprite": "square",
+      "tint": "#FFE27A",
+      "maxHealth": 6,
+      "moveSpeed": 1.6,
+      "contactDamage": 5,
+      "radius": 0.34,
+      "behaviour": "wander",
+      "scoreValue": 6,
+      "dropChance": 0.10
+    },
+    {
+      "id": "warden",
+      "displayName": "Warden",
+      "sprite": "ring",
+      "tint": "#FF5C7A",
+      "maxHealth": 60,
+      "moveSpeed": 1.5,
+      "contactDamage": 16,
+      "radius": 0.85,
+      "behaviour": "chase",
+      "scoreValue": 120,
+      "dropChance": 0.9
+    }
+  ]
+}

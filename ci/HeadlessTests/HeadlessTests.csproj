@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Headless test harness for VoidRunner.
+
+    VoidRunner's simulation, content, RNG, replay and modding code lives in
+    Assets/Scripts/Sim and is deliberately UnityEngine-free (see the VoidRunner.Sim.asmdef, which
+    sets "noEngineReferences": true). That lets us compile the *exact same source files* here in a
+    plain .NET project and run the NUnit tests on any GitHub runner — no Unity licence, no editor,
+    no GPU. If these tests pass, the deterministic core is correct on the CI machine.
+
+    The Unity-specific view layer (MonoBehaviours, editor tools) is NOT compiled here; it is only
+    referenced by the sim, never the other way around, so nothing in this project needs UnityEngine.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- The shared sources target Unity's older C#; silence warnings that don't matter here. -->
+    <NoWarn>$(NoWarn);CS0169;CS0649;CS0414</NoWarn>
+    <RootNamespace>VoidRunner.HeadlessTests</RootNamespace>
+    <AssemblyName>VoidRunner.HeadlessTests</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+
+  <!--
+    Pull in the engine-agnostic game source and the shared NUnit tests directly from the Unity
+    project. Globs are relative to this .csproj (ci/HeadlessTests → repo root is ../../).
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\Assets\Scripts\Sim\**\*.cs" />
+    <Compile Include="..\..\Assets\Scripts\Tests\**\*.cs" />
+  </ItemGroup>
+
+</Project>

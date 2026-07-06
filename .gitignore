@@ -1,0 +1,97 @@
+# ---------------------------------------------------------------------------
+# Unity
+# ---------------------------------------------------------------------------
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Asset meta data should only be ignored when the corresponding asset is also ignored
+!/[Aa]ssets/**/*.meta
+
+# Unity generated (Unity auto-creates these from the .asmdef files on import).
+# NOTE: our hand-written .NET harness/tool projects are force-included below.
+.vs/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Unity crash reports / editor artifacts
+sysinfo.txt
+crashlytics-build.properties
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# ---------------------------------------------------------------------------
+# .NET (headless test harness + tools)
+# ---------------------------------------------------------------------------
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.dll
+*.exe
+*.o
+*.a
+project.lock.json
+.nuget/
+
+# ---------------------------------------------------------------------------
+# Node (not used by this project, but kept per repo hygiene convention)
+# ---------------------------------------------------------------------------
+node_modules/
+dist/
+*.log
+
+# ---------------------------------------------------------------------------
+# Python (Blender export helper is stdlib-only, but keep this clean)
+# ---------------------------------------------------------------------------
+__pycache__/
+.venv/
+venv/
+*.pyc
+
+# ---------------------------------------------------------------------------
+# Rust / other toolchains (convention)
+# ---------------------------------------------------------------------------
+target/
+.vagrant/
+
+# ---------------------------------------------------------------------------
+# Force-include our hand-written .NET projects (the wildcard rules above would
+# otherwise drop them, since those rules target Unity's auto-generated files).
+# ---------------------------------------------------------------------------
+!ci/**/*.csproj
+!tools/**/*.csproj
+
+# ---------------------------------------------------------------------------
+# OS / editor cruft
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# ---------------------------------------------------------------------------
+# Project-local: generated replays and rendered art (art is regenerable via Blender)
+# ---------------------------------------------------------------------------
+/Assets/StreamingAssets/ContentPacks/**/*.png
+!/docs/**/*.png
