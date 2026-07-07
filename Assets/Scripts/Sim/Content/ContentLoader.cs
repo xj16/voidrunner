@@ -3,6 +3,36 @@ using VoidRunner.Data;
 
 namespace VoidRunner.Content
 {
+    /// <summary>Guards against non-finite or absurd numbers in untrusted content packs.</summary>
+    internal static class NumberGuard
+    {
+        // A generous world-scale bound. Anything past this in a content pack is either a typo or a
+        // hostile value designed to overflow the sim (e.g. a projectile that teleports across the
+        // float range). Legit content stays within a few hundred.
+        public const float MaxMagnitude = 1_000_000f;
+
+        public static bool IsFinite(float f) => !(float.IsNaN(f) || float.IsInfinity(f));
+
+        /// <summary>
+        /// Returns true if the value is finite and within bounds. On failure it appends a precise
+        /// error and returns false so the loader can refuse the pack rather than run a broken world.
+        /// </summary>
+        public static bool Check(float value, string source, string entity, string field, List<string> errors)
+        {
+            if (!IsFinite(value))
+            {
+                errors.Add($"[{source}] {entity} field '{field}' is not a finite number (NaN/Infinity)");
+                return false;
+            }
+            if (value > MaxMagnitude || value < -MaxMagnitude)
+            {
+                errors.Add($"[{source}] {entity} field '{field}' = {value} is out of the allowed range (±{MaxMagnitude})");
+                return false;
+            }
+            return true;
+        }
+    }
+
     /// <summary>
     /// Result of loading one or more content files: the populated registry plus any warnings and
     /// hard errors. A pack with errors is refused so a broken mod can never corrupt a run.
@@ -93,6 +123,18 @@ namespace VoidRunner.Content
                     dropChance = node.GetFloat("dropChance", 0.1f)
                 };
 
+                // Reject non-finite / absurd numbers before they reach the deterministic sim, where
+                // a NaN would silently corrupt every downstream position and the state hash.
+                string ent = $"enemy '{id}'";
+                bool numsOk =
+                    NumberGuard.Check(def.maxHealth, source, ent, "maxHealth", result.Errors) &
+                    NumberGuard.Check(def.moveSpeed, source, ent, "moveSpeed", result.Errors) &
+                    NumberGuard.Check(def.contactDamage, source, ent, "contactDamage", result.Errors) &
+                    NumberGuard.Check(def.radius, source, ent, "radius", result.Errors) &
+                    NumberGuard.Check(def.dropChance, source, ent, "dropChance", result.Errors);
+                if (!numsOk) continue;
+
+                if (def.radius <= 0f) { result.Warnings.Add($"[{source}] {ent} radius <= 0; clamped to 0.05"); def.radius = 0.05f; }
                 if (def.maxHealth <= 0f) result.Warnings.Add($"[{source}] enemy '{id}' has maxHealth <= 0; clamped to 1");
                 if (def.maxHealth <= 0f) def.maxHealth = 1f;
                 if (!IsKnownBehaviour(def.behaviour))
@@ -131,6 +173,24 @@ namespace VoidRunner.Content
                     rarityWeight = node.GetFloat("rarityWeight", 1f)
                 };
 
+                string went = $"weapon '{id}'";
+                bool wOk =
+                    NumberGuard.Check(def.damage, source, went, "damage", result.Errors) &
+                    NumberGuard.Check(def.fireRate, source, went, "fireRate", result.Errors) &
+                    NumberGuard.Check(def.projectileSpeed, source, went, "projectileSpeed", result.Errors) &
+                    NumberGuard.Check(def.projectileLifetime, source, went, "projectileLifetime", result.Errors) &
+                    NumberGuard.Check(def.spreadDegrees, source, went, "spreadDegrees", result.Errors) &
+                    NumberGuard.Check(def.projectileRadius, source, went, "projectileRadius", result.Errors) &
+                    NumberGuard.Check(def.rarityWeight, source, went, "rarityWeight", result.Errors);
+                if (!wOk) continue;
+
+                // A shot count in the thousands would exhaust the projectile pool every frame; bound
+                // it to a sane maximum so a hostile pack can't lock up the sim.
+                if (def.projectilesPerShot > 256)
+                {
+                    result.Warnings.Add($"[{source}] {went} projectilesPerShot {def.projectilesPerShot} capped to 256");
+                    def.projectilesPerShot = 256;
+                }
                 if (def.fireRate <= 0f) { result.Warnings.Add($"[{source}] weapon '{id}' fireRate <= 0; clamped to 0.1"); def.fireRate = 0.1f; }
                 if (def.projectilesPerShot < 1) def.projectilesPerShot = 1;
 
@@ -160,20 +220,38 @@ namespace VoidRunner.Content
                     weight = node.GetFloat("weight", 1f)
                 };
 
+                string rent = $"room '{id}'";
+                bool rOk =
+                    NumberGuard.Check(def.width, source, rent, "width", result.Errors) &
+                    NumberGuard.Check(def.height, source, rent, "height", result.Errors) &
+                    NumberGuard.Check(def.weight, source, rent, "weight", result.Errors);
+                if (!rOk) continue;
+
                 var obstacles = node["obstacles"];
                 if (obstacles != null && obstacles.IsArray)
                 {
+                    bool obstaclesOk = true;
                     foreach (var o in obstacles.AsArray)
                     {
                         if (!o.IsObject) continue;
-                        def.obstacles.Add(new ObstacleDef
+                        var ob = new ObstacleDef
                         {
                             x = o.GetFloat("x"),
                             y = o.GetFloat("y"),
                             width = o.GetFloat("width", 1f),
                             height = o.GetFloat("height", 1f)
-                        });
+                        };
+                        // Obstacles are simulated now, so their geometry must be finite & sane.
+                        obstaclesOk &=
+                            NumberGuard.Check(ob.x, source, rent, "obstacle.x", result.Errors) &
+                            NumberGuard.Check(ob.y, source, rent, "obstacle.y", result.Errors) &
+                            NumberGuard.Check(ob.width, source, rent, "obstacle.width", result.Errors) &
+                            NumberGuard.Check(ob.height, source, rent, "obstacle.height", result.Errors);
+                        if (ob.width < 0f) ob.width = -ob.width;
+                        if (ob.height < 0f) ob.height = -ob.height;
+                        def.obstacles.Add(ob);
                     }
+                    if (!obstaclesOk) continue;
                 }
 
                 var waveIds = node["waveIds"];

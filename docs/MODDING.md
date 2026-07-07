@@ -141,7 +141,10 @@ Waves group enemy spawns; rooms bundle a play area with the waves that can spawn
 
 - A wave `group` = `enemyId` + `count` + `delay` (seconds after the wave starts).
 - A room's `weight` biases how often the run picks it. `width`/`height` are the interior in world units
-  (clamped to sensible minimums). `obstacles` are decorative rectangles.
+  (clamped to sensible minimums). `obstacles` are **solid** rectangles: the player and enemies collide
+  with them (and are pushed out / steer around them), and projectiles are destroyed on impact — so an
+  obstacle is real cover, not decoration. Each obstacle is `{ "x", "y", "width", "height" }` in world
+  units, centred on `(x, y)`.
 - `waveIds` must reference waves that exist **somewhere across all loaded packs** — a dangling
   reference is a hard error, so a run can never try to spawn something that isn't defined.
 
@@ -154,9 +157,16 @@ Difficulty scales automatically with depth: deeper rooms repeat waves more and b
 - **Last write wins.** If two packs declare the same `id`, the one loaded later replaces it. This is
   how a mod re-balances base content — just re-declare the id with new numbers.
 - **Fingerprint.** The game computes a 64-bit fingerprint of all *gameplay-affecting* fields (ids and
-  numbers, **not** cosmetic `displayName`/`sprite`/`tint`). Replays embed it, so a replay recorded with
-  your mod won't be falsely "verified" against vanilla — and a pure texture/name swap won't invalidate
-  existing replays. See [`REPLAY_FORMAT.md`](REPLAY_FORMAT.md).
+  numbers **including obstacle geometry**, but **not** cosmetic `displayName`/`sprite`/`tint`). Replays
+  embed it, so a replay recorded with your mod won't be falsely "verified" against vanilla — and a pure
+  texture/name swap won't invalidate existing replays, while moving a wall (which changes the run) will.
+  See [`REPLAY_FORMAT.md`](REPLAY_FORMAT.md).
+
+## Numeric safety
+
+Content packs are untrusted input (people share them), so the loader refuses any pack containing a
+non-finite number (`NaN`/`Infinity`) or a value outside ±1,000,000, and caps `projectilesPerShot` at
+256. This keeps a malformed or hostile pack from corrupting the deterministic sim or locking it up.
 
 ## Validating your pack
 

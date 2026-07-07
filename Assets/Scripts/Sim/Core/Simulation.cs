@@ -113,6 +113,10 @@ namespace VoidRunner.Core
 
             if (CurrentRoom == null) return;
 
+            // The player enters at the room centre; if a room places an obstacle there (e.g. the
+            // reactor core), push the player clear so they never start embedded in a wall.
+            ResolveObstacles(ref Player.Position, Player.Radius);
+
             // Difficulty scales with room number: more copies of each wave, tougher enemies.
             int waveRepeat = 1 + (number - 1) / 2;
 
@@ -249,6 +253,7 @@ namespace VoidRunner.Core
             Player.Position += Player.Velocity * dt;
 
             ClampToRoom(ref Player.Position, Player.Radius);
+            ResolveObstacles(ref Player.Position, Player.Radius);
 
             if (Player.InvulnTimer > 0f) Player.InvulnTimer -= dt;
             if (Player.FireCooldown > 0f) Player.FireCooldown -= dt;
@@ -359,9 +364,44 @@ namespace VoidRunner.Core
                         break;
                 }
 
+                // Obstacle-aware steering: if walking straight would push into a block, try sliding
+                // around it by testing a small deflection to either side and taking whichever keeps
+                // the enemy in open space. Deterministic (no RNG, no platform math beyond DetMath).
+                Vec2 step = e.Velocity * dt;
+                Vec2 next = e.Position + step;
+                if (HitsObstacle(next, e.Radius))
+                {
+                    Vec2 deflected = TryDeflectAroundObstacle(e.Position, e.Velocity, e.Radius, dt);
+                    e.Velocity = deflected;
+                }
+
                 e.Position += e.Velocity * dt;
                 ClampToRoom(ref e.Position, e.Radius);
+                ResolveObstacles(ref e.Position, e.Radius);
             }
+        }
+
+        /// <summary>
+        /// Returns a velocity that steers <paramref name="vel"/> around an obstacle it would
+        /// otherwise walk into, by rotating the heading in fixed increments and choosing the first
+        /// that clears. Purely deterministic. Falls back to the original velocity if fully boxed in
+        /// (the push-out in <see cref="ResolveObstacles"/> then keeps it from tunnelling).
+        /// </summary>
+        private Vec2 TryDeflectAroundObstacle(Vec2 pos, Vec2 vel, float radius, float dt)
+        {
+            float speed = vel.Magnitude;
+            if (speed < 1e-5f) return vel;
+
+            // Try increasing deflection angles, alternating sides, until one is clear.
+            for (int a = 1; a <= 6; a++)
+            {
+                float deg = a * 22.5f;
+                Vec2 left = vel.Rotate(deg);
+                if (!HitsObstacle(pos + left * dt, radius)) return left;
+                Vec2 right = vel.Rotate(-deg);
+                if (!HitsObstacle(pos + right * dt, radius)) return right;
+            }
+            return vel;
         }
 
         private void UpdateProjectiles(float dt)
@@ -373,7 +413,9 @@ namespace VoidRunner.Core
                 p.Position += p.Velocity * dt;
                 p.Lifetime -= dt;
 
-                if (p.Lifetime <= 0f || OutOfRoom(p.Position, p.Radius))
+                // A shot dies when it expires, leaves the room, OR strikes a solid obstacle. The
+                // obstacle check is what makes room cover meaningful: you can break line of fire.
+                if (p.Lifetime <= 0f || OutOfRoom(p.Position, p.Radius) || HitsObstacle(p.Position, p.Radius))
                 {
                     p.Active = false;
                 }
@@ -550,6 +592,82 @@ namespace VoidRunner.Core
             float halfH = CurrentRoom.height * 0.5f - radius;
             pos.X = SimMathUtil.Clamp(pos.X, -halfW, halfW);
             pos.Y = SimMathUtil.Clamp(pos.Y, -halfH, halfH);
+        }
+
+        /// <summary>
+        /// Pushes a moving circle (player or enemy) out of every obstacle in the current room. This
+        /// is what makes the obstacle rectangles the rooms ship with actually solid: an entity that
+        /// walks into one is displaced along the shallowest axis so it slides around the block rather
+        /// than passing through. Fully deterministic (float-only AABB math, no UnityEngine), so it
+        /// preserves the replay/verification guarantee.
+        /// </summary>
+        private void ResolveObstacles(ref Vec2 pos, float radius)
+        {
+            if (CurrentRoom == null) return;
+            var obstacles = CurrentRoom.obstacles;
+            if (obstacles == null || obstacles.Count == 0) return;
+
+            for (int i = 0; i < obstacles.Count; i++)
+            {
+                var o = obstacles[i];
+                float halfW = o.width * 0.5f;
+                float halfH = o.height * 0.5f;
+
+                // Closest point on the AABB to the circle centre.
+                float cx = SimMathUtil.Clamp(pos.X, o.x - halfW, o.x + halfW);
+                float cy = SimMathUtil.Clamp(pos.Y, o.y - halfH, o.y + halfH);
+
+                float dx = pos.X - cx;
+                float dy = pos.Y - cy;
+                float distSq = dx * dx + dy * dy;
+
+                if (distSq > radius * radius) continue; // not overlapping this obstacle
+
+                if (distSq > 1e-12f)
+                {
+                    // Circle centre is outside the box but the rim overlaps: push straight out along
+                    // the contact normal to exactly touching distance.
+                    float dist = DetMath.Sqrt(distSq);
+                    float push = radius - dist;
+                    float inv = 1f / dist;
+                    pos.X += dx * inv * push;
+                    pos.Y += dy * inv * push;
+                }
+                else
+                {
+                    // Centre is inside the box: eject along the axis of least penetration.
+                    float penX = halfW + radius - (pos.X - o.x < 0f ? o.x - pos.X : pos.X - o.x);
+                    float penY = halfH + radius - (pos.Y - o.y < 0f ? o.y - pos.Y : pos.Y - o.y);
+                    if (penX < penY)
+                        pos.X += pos.X < o.x ? -penX : penX;
+                    else
+                        pos.Y += pos.Y < o.y ? -penY : penY;
+                }
+            }
+        }
+
+        /// <summary>
+        /// True if a circle at <paramref name="pos"/> with <paramref name="radius"/> overlaps any
+        /// obstacle in the current room. Used to destroy projectiles that hit a wall.
+        /// </summary>
+        private bool HitsObstacle(Vec2 pos, float radius)
+        {
+            if (CurrentRoom == null) return false;
+            var obstacles = CurrentRoom.obstacles;
+            if (obstacles == null || obstacles.Count == 0) return false;
+
+            for (int i = 0; i < obstacles.Count; i++)
+            {
+                var o = obstacles[i];
+                float halfW = o.width * 0.5f;
+                float halfH = o.height * 0.5f;
+                float cx = SimMathUtil.Clamp(pos.X, o.x - halfW, o.x + halfW);
+                float cy = SimMathUtil.Clamp(pos.Y, o.y - halfH, o.y + halfH);
+                float dx = pos.X - cx;
+                float dy = pos.Y - cy;
+                if (dx * dx + dy * dy <= radius * radius) return true;
+            }
+            return false;
         }
 
         private bool OutOfRoom(Vec2 pos, float radius)

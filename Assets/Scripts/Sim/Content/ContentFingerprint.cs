@@ -67,7 +67,14 @@ namespace VoidRunner.Content
                     var r = registry.GetRoom(id);
                     MixStr(r.id);
                     MixF(r.width); MixF(r.height); MixF(r.weight);
+                    // Obstacle GEOMETRY is now simulated (entities collide with it, projectiles die
+                    // on it), so it affects the run and must be part of the fingerprint — hashing
+                    // only the count would let a mod slide a wall without invalidating replays.
                     MixI(r.obstacles.Count);
+                    foreach (var o in r.obstacles)
+                    {
+                        MixF(o.x); MixF(o.y); MixF(o.width); MixF(o.height);
+                    }
                     foreach (var wid in r.waveIds) MixStr(wid);
                 }
 

@@ -109,12 +109,21 @@ namespace VoidRunner.Content
             return value;
         }
 
+        /// <summary>
+        /// Maximum object/array nesting depth. Content packs and replays are untrusted input that
+        /// strangers share; a deeply-nested payload (e.g. "[[[[[…]]]]]" thousands deep) would blow
+        /// the stack of the recursive-descent parser. We refuse it with a clean error instead.
+        /// Legitimate content is at most 4–5 levels deep, so 128 is generous.
+        /// </summary>
+        public const int MaxDepth = 128;
+
         private sealed class Parser
         {
             private readonly string _s;
             private int _i;
             private int _line = 1;
             private int _col = 1;
+            private int _depth;
 
             public Parser(string s) { _s = s; }
 
@@ -175,10 +184,11 @@ namespace VoidRunner.Content
 
             private JsonValue ParseObject()
             {
+                if (++_depth > MaxDepth) Fail($"nesting too deep (> {MaxDepth})");
                 var obj = JsonValue.NewObject();
                 Advance(); // {
                 SkipWhitespace();
-                if (!AtEnd && Current == '}') { Advance(); return obj; }
+                if (!AtEnd && Current == '}') { Advance(); _depth--; return obj; }
 
                 while (true)
                 {
@@ -196,15 +206,17 @@ namespace VoidRunner.Content
                     if (Current == '}') { Advance(); break; }
                     Fail("expected ',' or '}' in object");
                 }
+                _depth--;
                 return obj;
             }
 
             private JsonValue ParseArray()
             {
+                if (++_depth > MaxDepth) Fail($"nesting too deep (> {MaxDepth})");
                 var arr = JsonValue.NewArray();
                 Advance(); // [
                 SkipWhitespace();
-                if (!AtEnd && Current == ']') { Advance(); return arr; }
+                if (!AtEnd && Current == ']') { Advance(); _depth--; return arr; }
 
                 while (true)
                 {
@@ -216,6 +228,7 @@ namespace VoidRunner.Content
                     if (Current == ']') { Advance(); break; }
                     Fail("expected ',' or ']' in array");
                 }
+                _depth--;
                 return arr;
             }
 

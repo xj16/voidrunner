@@ -82,6 +82,18 @@ namespace VoidRunner.Replay
         // Magic prefix so tooling can sniff the format.
         private const string Magic = "VRPLAY";
 
+        /// <summary>
+        /// Hard ceiling on how many ticks a decoded replay may contain. Replays are untrusted input
+        /// that strangers share; run-length encoding means a few dozen bytes can claim billions of
+        /// ticks (count is a uint16 per record, and a file can have many records), which would make
+        /// the verifier allocate an enormous list and then simulate forever. We refuse anything above
+        /// this bound. 216 000 ticks = one hour of real play at 60 Hz — far beyond any real run.
+        /// </summary>
+        public const int MaxTicks = 216_000;
+
+        /// <summary>Maximum number of RLE records (7 bytes each) accepted in one replay blob.</summary>
+        public const int MaxRecords = MaxTicks; // worst case: every record is a run of length 1
+
         public static string Serialize(ReplayData r)
         {
             var sb = new StringBuilder();
@@ -106,7 +118,17 @@ namespace VoidRunner.Replay
 
         public static ReplayData Deserialize(string text)
         {
-            var root = Json.Parse(text);
+            JsonValue root;
+            try
+            {
+                root = Json.Parse(text);
+            }
+            catch (JsonParseException ex)
+            {
+                // Present a single, uniform failure type to callers: whether the bytes are malformed
+                // JSON or a structurally-wrong replay, it's all "this is not a valid replay file".
+                throw new FormatException("replay is not valid JSON: " + ex.Message, ex);
+            }
             if (root == null || !root.IsObject) throw new FormatException("replay is not a JSON object");
 
             string magic = root.GetString("magic");
@@ -170,9 +192,20 @@ namespace VoidRunner.Replay
             byte[] bytes = Convert.FromBase64String(blob);
             if (bytes.Length % 7 != 0) throw new FormatException("corrupt replay input stream (bad length)");
 
+            int recordCount = bytes.Length / 7;
+            if (recordCount > MaxRecords)
+                throw new FormatException($"replay has too many records ({recordCount} > {MaxRecords})");
+
+            // Bound the TOTAL expanded tick count as we go, so a maliciously large run field can't
+            // make us allocate gigabytes before we notice. We check before appending each run.
+            long total = 0;
             for (int p = 0; p < bytes.Length; p += 7)
             {
                 int run = bytes[p] | (bytes[p + 1] << 8);
+                total += run;
+                if (total > MaxTicks)
+                    throw new FormatException($"replay expands to too many ticks (> {MaxTicks}); refusing to allocate");
+
                 var cmd = new InputCommand
                 {
                     MoveX = unchecked((sbyte)bytes[p + 2]),

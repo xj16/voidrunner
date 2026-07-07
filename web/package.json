@@ -1,0 +1,11 @@
+{
+  "name": "voidrunner-web",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Pure-JS port of the VoidRunner deterministic core + self-contained browser demo.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node parity.test.mjs"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "note": "C#-generated golden vectors for the JS core port. web/parity.test.mjs asserts the pure-JS core reproduces every hash bit-for-bit. Regenerate only if the sim intentionally changes.",
+  "fingerprint": "15865755229043955748",
+  "runs": [
+    { "seed": "0", "hash": "13530096108225258038", "score": 90, "room": 1, "tick": 937 },
+    { "seed": "1", "hash": "13604442024869417522", "score": 0, "room": 1, "tick": 681 },
+    { "seed": "2", "hash": "13897864331114768890", "score": 68, "room": 1, "tick": 784 },
+    { "seed": "3", "hash": "15105434121859070846", "score": 12, "room": 1, "tick": 698 },
+    { "seed": "7", "hash": "5607320289182097970", "score": 0, "room": 1, "tick": 633 },
+    { "seed": "42", "hash": "8451359813976191017", "score": 76, "room": 1, "tick": 744 },
+    { "seed": "99", "hash": "1785321588860950554", "score": 96, "room": 1, "tick": 717 },
+    { "seed": "777", "hash": "6404396490475962184", "score": 32, "room": 1, "tick": 757 },
+    { "seed": "2024", "hash": "8360338469621980439", "score": 92, "room": 1, "tick": 787 },
+    { "seed": "31337", "hash": "17002222889654265695", "score": 12, "room": 1, "tick": 628 },
+    { "seed": "123456", "hash": "15062633991650028556", "score": 186, "room": 2, "tick": 3000 },
+    { "seed": "999999", "hash": "10139300603177834805", "score": 68, "room": 1, "tick": 729 }
+  ]
+}

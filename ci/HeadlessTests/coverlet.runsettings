@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <!-- All game + test sources compile into a single assembly, so we must include the test
+               assembly and instead exclude the test *namespace* from the coverage numerator. -->
+          <IncludeTestAssembly>true</IncludeTestAssembly>
+          <ExcludeByFile>**/Tests/**</ExcludeByFile>
+          <Exclude>[*]VoidRunner.Tests.*</Exclude>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

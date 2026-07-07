@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VoidRunner — playable demo</title>
+<meta name="description" content="A data-driven, deterministic roguelite running entirely in your browser via a pure-JS port of its engine-agnostic core." />
+<style>
+  :root{
+    --bg:#070912; --panel:#0e1222; --panel2:#141a2f; --line:#242c47;
+    --ink:#e7ecfb; --muted:#8f9bc4; --accent:#5ad1ff; --accent2:#9d7bff;
+    --good:#54e39b; --bad:#ff6b8a; --warn:#ffcf6b; --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#111834 0%,var(--bg) 60%);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  a{color:var(--accent)}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
+  header.hero{display:flex;flex-direction:column;gap:8px;margin-bottom:22px}
+  .logo{font-weight:800;letter-spacing:.14em;font-size:34px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .tag{color:var(--muted);font-size:15px;max-width:70ch;line-height:1.5}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .badge{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--panel)}
+  .badge b{color:var(--accent)}
+  .grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .card h2{margin:0 0 10px;font-size:15px;letter-spacing:.02em;color:var(--ink);font-weight:700}
+  canvas{width:100%;display:block;background:#05070f;border-radius:10px;border:1px solid var(--line);image-rendering:auto}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  input,select,textarea,button{font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+  input[type=text]{min-width:150px}
+  textarea{font-family:var(--mono);font-size:12.5px;line-height:1.45;width:100%;min-height:230px;resize:vertical;white-space:pre;color:#cfe0ff}
+  button{cursor:pointer;font-weight:600;background:var(--panel2);transition:border-color .12s,background .12s}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:linear-gradient(90deg,rgba(90,209,255,.18),rgba(157,123,255,.18));border-color:var(--accent)}
+  .hint{color:var(--muted);font-size:12.5px;margin-top:8px;line-height:1.5}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+  .stat .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+  .stat .v{font-family:var(--mono);font-size:16px;margin-top:2px}
+  .kbd{font-family:var(--mono);font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:1px 6px;background:var(--panel2)}
+  .val{font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;word-break:break-word}
+  .ok{color:var(--good)} .err{color:var(--bad)} .wn{color:var(--warn)}
+  .list{margin:6px 0 0;padding:0;list-style:none;font-size:12.5px;color:var(--muted)}
+  .list li{padding:2px 0;border-bottom:1px dashed var(--line)}
+  footer{color:var(--muted);font-size:12.5px;margin-top:26px;line-height:1.6}
+  .tabbtns{display:flex;gap:6px;margin-bottom:10px}
+  .tabbtns button{font-size:12.5px;padding:6px 10px}
+  .tabbtns button[aria-selected=true]{border-color:var(--accent);color:var(--ink)}
+  .split{display:grid;grid-template-columns:1fr;gap:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="logo">VOIDRUNNER</div>
+    <div class="tag">A data-driven, deterministic twin-stick roguelite. This whole demo — the physics, the RNG, the collision, the replay verifier — is a <b>pure-JavaScript port of the game's engine-agnostic core</b>, reproducing the C# simulation <b>bit-for-bit</b>. No install, no engine, no server.</div>
+    <div class="badges" id="badges">
+      <span class="badge">content <b id="b-content">…</b></span>
+      <span class="badge">fingerprint <b id="b-fp">…</b></span>
+      <span class="badge">core <b>pure JS · float32-exact</b></span>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- Left: the game -->
+    <div class="card">
+      <h2>Play a seed</h2>
+      <canvas id="game" width="720" height="440" aria-label="VoidRunner gameplay"></canvas>
+      <div class="row">
+        <input type="text" id="seed" placeholder="seed (e.g. COSMIC-DRIFT)" value="COSMIC-DRIFT" />
+        <button class="primary" id="play">Start run</button>
+        <button id="daily">Daily</button>
+        <button id="watch">Watch verified replay</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="k">score</div><div class="v" id="s-score">0</div></div>
+        <div class="stat"><div class="k">room</div><div class="v" id="s-room">1</div></div>
+        <div class="stat"><div class="k">hp</div><div class="v" id="s-hp">100</div></div>
+        <div class="stat"><div class="k">tick</div><div class="v" id="s-tick">0</div></div>
+      </div>
+      <div class="hint">
+        <span class="kbd">WASD</span> move · <span class="kbd">mouse</span> aim · <span class="kbd">hold click</span> fire · <span class="kbd">R</span> restart.
+        The same seed always plays out identically — that's the determinism guarantee, running here in JS.
+      </div>
+      <div class="hint" id="verify-note"></div>
+    </div>
+
+    <!-- Right: modding playground -->
+    <div class="card">
+      <h2>Modding playground</h2>
+      <div class="tabbtns" role="tablist">
+        <button role="tab" aria-selected="true" data-pack="base">Base pack</button>
+        <button role="tab" aria-selected="false" data-pack="mod">Example mod</button>
+      </div>
+      <textarea id="editor" spellcheck="false" aria-label="content pack JSON"></textarea>
+      <div class="row">
+        <button class="primary" id="apply">Validate + apply</button>
+        <button id="preview">10s bot preview</button>
+      </div>
+      <div class="hint">Edit a number — a faster swarmer, a piercing beam, a new room — and the exact game loader
+        validates it (precise errors) and runs a live bot on your content. This is the "content is data" claim, tangible.</div>
+      <div class="val" id="mod-out" style="margin-top:10px"></div>
+      <ul class="list" id="mod-warn"></ul>
+    </div>
+  </div>
+
+  <footer>
+    Built from <span class="val">web/voidrunner-core.js</span> — a dependency-free JS port that reproduces the C# core to the bit
+    (verified in CI by <span class="val">web/parity.test.mjs</span>, which re-verifies a C#-recorded replay in JS).
+    Source: <a id="repo" href="https://github.com/xj16/voidrunner">github.com/xj16/voidrunner</a>.
+  </footer>
+</div>
+
+<!-- @@CORE@@ -->
+<script>
+/* @@PACKS@@ */
+
+(function(){
+  const VR = window.VoidRunner;
+  const $ = (id)=>document.getElementById(id);
+  const f = Math.fround;
+
+  // ---- Load the shipped content (embedded packs, dependency-ordered) ----
+  function loadShipped(overrides){
+    const files = PACKS.map(p=>({source:p.source, data: JSON.parse(JSON.stringify(p.data))}));
+    if(overrides) for(const o of overrides){ const i=files.findIndex(x=>x.source===o.source); if(i>=0) files[i]=o; }
+    return VR.loadContent(files);
+  }
+  let loaded = loadShipped();
+  let registry = loaded.registry;
+  let fingerprint = VR.contentFingerprint(registry);
+  $('b-content').textContent = `${registry.enemyOrder.length} enemies · ${registry.weaponOrder.length} weapons · ${registry.roomOrder.length} rooms`;
+  $('b-fp').textContent = fingerprint.toString().slice(0,10)+'…';
+
+  // ---- Canvas renderer with interpolation (view-only) ----
+  const canvas=$('game'), ctx=canvas.getContext('2d');
+  const TINT={};
+  function tint(hex,fb){ if(!hex) return fb; return hex; }
+  const COLORS=['#7FB4FF','#9DFF8A','#FF8A5C','#E58AFF','#FFE27A','#FF5C7A','#3CFFE0','#FF3CAC'];
+
+  let sim=null, prev=null, acc=0, lastT=0, raf=0, mode='idle';
+  let replayInputs=null, replayIdx=0;
+  const keys={};
+  const mouse={x:0,y:0};
+
+  addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true; if(e.key.toLowerCase()==='r'&&mode==='play'){start(currentSeedText());}});
+  addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
+  canvas.addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect(); mouse.x=(e.clientX-r.left)/r.width*canvas.width; mouse.y=(e.clientY-r.top)/r.height*canvas.height;});
+  let firing=false;
+  canvas.addEventListener('mousedown',()=>firing=true);
+  addEventListener('mouseup',()=>firing=false);
+
+  function currentSeedText(){ return $('seed').value.trim(); }
+  function seedFromText(t){ return t ? VR.DeterministicRandom.fromString(t).seed : 0n; }
+
+  function newSim(seed){
+    sim=new VR.Simulation(registry, seed); prev=snapshot(sim); acc=0; lastT=performance.now();
+  }
+  function snapshot(s){
+    return { px:s.player.x, py:s.player.y,
+      e:s.enemies.map(e=>e.active?{x:e.x,y:e.y}:null),
+      p:s.projectiles.map(p=>p.active?{x:p.x,y:p.y}:null) };
+  }
+
+  function start(seedText){
+    mode='play'; replayInputs=null;
+    newSim(seedFromText(seedText));
+    $('verify-note').textContent='';
+    loop();
+  }
+
+  async function watchReplay(){
+    try{
+      const res = await fetch('cosmic-drift.vrplay').catch(()=>null);
+      let text = res && res.ok ? await res.text() : (window.SAMPLE_REPLAY||'');
+      if(!text){ $('verify-note').innerHTML='<span class="err">no sample replay bundled</span>'; return; }
+      const replay = VR.deserializeReplay(text);
+      const v = VR.verifyReplay(replay, registry, fingerprint);
+      $('verify-note').innerHTML = v.reproduced
+        ? `<span class="ok">✓ this JS core verified the C#-recorded replay to the bit</span> — score ${v.replayedScore}, room ${v.replayedRoom}. Now watching it.`
+        : `<span class="err">replay did not verify: ${v.message}</span>`;
+      if(!v.reproduced) return;
+      $('seed').value = replay.label || replay.seed.toString();
+      mode='replay'; replayInputs=replay.inputs; replayIdx=0;
+      newSim(replay.seed); loop();
+    }catch(e){ $('verify-note').innerHTML='<span class="err">'+e.message+'</span>'; }
+  }
+
+  function liveInput(){
+    let mx=0,my=0;
+    if(keys['a']||keys['arrowleft'])mx-=1; if(keys['d']||keys['arrowright'])mx+=1;
+    if(keys['w']||keys['arrowup'])my+=1; if(keys['s']||keys['arrowdown'])my-=1;
+    // aim from mouse relative to player in world space
+    const room=sim.currentRoom; const scale=Math.min(canvas.width/(room.width+2),canvas.height/(room.height+2));
+    const cx=canvas.width/2, cy=canvas.height/2;
+    const wx=(mouse.x-cx)/scale, wy=-(mouse.y-cy)/scale;
+    const ax=wx - sim.player.x, ay=wy - sim.player.y;
+    return VR.makeInput(mx,my,ax,ay,firing);
+  }
+
+  function loop(){
+    cancelAnimationFrame(raf);
+    function frame(t){
+      const dt=Math.min(0.05,(t-lastT)/1000); lastT=t; acc+=dt;
+      let stepped=false;
+      while(acc>=VR.FixedDeltaTime){
+        acc-=VR.FixedDeltaTime;
+        if(mode==='replay'){
+          if(replayIdx>=replayInputs.length||sim.runOver){ mode='over'; break; }
+          prev=snapshot(sim); sim.step(replayInputs[replayIdx++]); stepped=true;
+        } else if(mode==='play'){
+          prev=snapshot(sim); sim.step(liveInput()); stepped=true;
+          if(sim.runOver){ mode='over'; }
+        }
+      }
+      draw(acc/VR.FixedDeltaTime);
+      updateStats();
+      if(mode==='play'||mode==='replay') raf=requestAnimationFrame(frame);
+    }
+    raf=requestAnimationFrame(frame);
+  }
+
+  function lerp(a,b,t){return a+(b-a)*t;}
+  function draw(alpha){
+    const room=sim.currentRoom;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const scale=Math.min(canvas.width/(room.width+2),canvas.height/(room.height+2));
+    const cx=canvas.width/2, cy=canvas.height/2;
+    const W=(wx)=>cx+wx*scale, H=(wy)=>cy-wy*scale;
+    // floor
+    ctx.fillStyle='#0a0f22'; ctx.fillRect(W(-room.width/2),H(room.height/2),room.width*scale,room.height*scale);
+    ctx.strokeStyle='#20294a'; ctx.strokeRect(W(-room.width/2),H(room.height/2),room.width*scale,room.height*scale);
+    // obstacles
+    ctx.fillStyle='#1a2340';
+    for(const o of room.obstacles){ ctx.fillRect(W(o.x-o.width/2),H(o.y+o.height/2),o.width*scale,o.height*scale); }
+    // projectiles
+    for(let i=0;i<sim.projectiles.length;i++){ const p=sim.projectiles[i]; if(!p.active)continue;
+      const pp=prev.p[i]; const x=pp?lerp(pp.x,p.x,alpha):p.x, y=pp?lerp(pp.y,p.y,alpha):p.y;
+      ctx.fillStyle='#ffd27a'; ctx.beginPath(); ctx.arc(W(x),H(y),Math.max(2,p.radius*scale),0,7); ctx.fill(); }
+    // enemies
+    for(let i=0;i<sim.enemies.length;i++){ const e=sim.enemies[i]; if(!e.active)continue;
+      const pe=prev.e[i]; const x=pe?lerp(pe.x,e.x,alpha):e.x, y=pe?lerp(pe.y,e.y,alpha):e.y;
+      const def=registry.enemies.get(registry.enemyOrder[e.defIndex]);
+      ctx.fillStyle=(def&&def.tint)||COLORS[e.defIndex%COLORS.length];
+      ctx.beginPath(); ctx.arc(W(x),H(y),Math.max(3,e.radius*scale),0,7); ctx.fill(); }
+    // pickups
+    for(const pk of sim.pickups){ if(!pk.active)continue; ctx.fillStyle=pk.kind===0?'#66ff8a':'#ffd84d';
+      ctx.beginPath(); ctx.arc(W(pk.x),H(pk.y),pk.radius*scale,0,7); ctx.fill(); }
+    // player
+    const px=lerp(prev.px,sim.player.x,alpha), py=lerp(prev.py,sim.player.y,alpha);
+    ctx.fillStyle=sim.player.invulnTimer>0?'#bfefff':'#5ad1ff';
+    ctx.beginPath(); ctx.arc(W(px),H(py),0.35*scale,0,7); ctx.fill();
+    if(mode==='over'){ ctx.fillStyle='rgba(4,6,15,.66)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle='#e7ecfb'; ctx.font='600 22px system-ui'; ctx.textAlign='center';
+      ctx.fillText('Run over · score '+sim.score+' · room '+sim.roomNumber, canvas.width/2, canvas.height/2-6);
+      ctx.fillStyle='#8f9bc4'; ctx.font='13px system-ui';
+      ctx.fillText('press R or Start run', canvas.width/2, canvas.height/2+18); ctx.textAlign='left'; }
+  }
+  function updateStats(){ $('s-score').textContent=sim.score; $('s-room').textContent=sim.roomNumber;
+    $('s-hp').textContent=Math.max(0,Math.round(sim.player.health)); $('s-tick').textContent=sim.tick; }
+
+  // ---- Buttons ----
+  $('play').onclick=()=>start(currentSeedText());
+  $('daily').onclick=()=>{ const d=new Date(); const y=d.getUTCFullYear(),m=d.getUTCMonth()+1,day=d.getUTCDate();
+    $('seed').value=`DAILY-${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`; start(currentSeedText()); };
+  $('watch').onclick=watchReplay;
+
+  // Deep-link: ?seed=… or ?daily=1
+  const q=new URLSearchParams(location.search);
+  if(q.get('daily')==='1'){ $('daily').click(); }
+  else if(q.get('seed')){ $('seed').value=q.get('seed'); start(q.get('seed')); }
+  else { start('COSMIC-DRIFT'); }
+
+  // ---- Modding playground ----
+  const editor=$('editor');
+  const packText={ base: JSON.stringify(PACKS[2].data,null,2), mod: JSON.stringify(PACKS[3].data,null,2) };
+  editor.value=packText.base;
+  let editing='base';
+  document.querySelectorAll('.tabbtns button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('.tabbtns button').forEach(x=>x.setAttribute('aria-selected','false'));
+    b.setAttribute('aria-selected','true'); editing=b.dataset.pack; editor.value=packText[editing]; });
+
+  function applyMod(){
+    packText[editing]=editor.value;
+    let overrides=null, parseErr=null;
+    try{
+      const data=JSON.parse(editor.value);
+      const src = editing==='base' ? PACKS[2].source : PACKS[3].source;
+      overrides=[{source:src, data}];
+    }catch(e){ parseErr=e.message; }
+    if(parseErr){ $('mod-out').innerHTML='<span class="err">JSON parse error: '+parseErr+'</span>'; $('mod-warn').innerHTML=''; return false; }
+    const res=loadShipped(overrides);
+    const out=$('mod-out'), wl=$('mod-warn'); wl.innerHTML='';
+    if(!res.ok){ out.innerHTML='<span class="err">✗ content rejected:</span>';
+      res.errors.slice(0,8).forEach(e=>{const li=document.createElement('li');li.className='err';li.textContent=e;wl.appendChild(li);}); return false; }
+    registry=res.registry; fingerprint=VR.contentFingerprint(registry);
+    $('b-content').textContent = `${registry.enemyOrder.length} enemies · ${registry.weaponOrder.length} weapons · ${registry.roomOrder.length} rooms`;
+    $('b-fp').textContent=fingerprint.toString().slice(0,10)+'…';
+    out.innerHTML='<span class="ok">✓ valid — fingerprint '+fingerprint.toString().slice(0,12)+'…</span>';
+    res.warnings.slice(0,8).forEach(w=>{const li=document.createElement('li');li.className='wn';li.textContent=w;wl.appendChild(li);});
+    return true;
+  }
+  $('apply').onclick=applyMod;
+  $('preview').onclick=()=>{ if(!applyMod())return; $('seed').value='MOD-PREVIEW';
+    // deterministic bot preview using the scripted input
+    mode='play'; replayInputs=null; newSim(seedFromText('MOD-PREVIEW'));
+    let t=0; const orig=liveInput; // override with scripted bot for ~10s
+    mode='replay'; replayInputs={length:600, get:(i)=>VR.scriptedInput(i)};
+    // Simpler: synthesize an inputs array
+    replayInputs=[]; for(let i=0;i<600;i++) replayInputs.push(VR.scriptedInput(i)); replayIdx=0; loop();
+  };
+})();
+</script>
+</body>
+</html>

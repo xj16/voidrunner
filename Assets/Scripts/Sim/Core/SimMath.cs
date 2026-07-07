@@ -30,7 +30,9 @@ namespace VoidRunner.Core
 
         public float SqrMagnitude => (X * X) + (Y * Y);
 
-        public float Magnitude => (float)Math.Sqrt(SqrMagnitude);
+        // Uses the deterministic IEEE float sqrt (NOT (float)Math.Sqrt((double)x), which double-
+        // rounds and can differ across platforms) so entity magnitudes are bit-identical everywhere.
+        public float Magnitude => DetMath.Sqrt(SqrMagnitude);
 
         public Vec2 Normalized
         {
@@ -55,12 +57,12 @@ namespace VoidRunner.Core
             return Normalized * max;
         }
 
-        /// <summary>Returns this vector rotated by the given angle in degrees (CCW).</summary>
+        /// <summary>Returns this vector rotated by the given angle in degrees (CCW). Deterministic.</summary>
         public Vec2 Rotate(float degrees)
         {
-            float rad = degrees * (float)(Math.PI / 180.0);
-            float c = (float)Math.Cos(rad);
-            float s = (float)Math.Sin(rad);
+            float rad = degrees * DetMath.Deg2Rad;
+            float c = DetMath.Cos(rad);
+            float s = DetMath.Sin(rad);
             return new Vec2((X * c) - (Y * s), (X * s) + (Y * c));
         }
 
@@ -72,20 +74,18 @@ namespace VoidRunner.Core
 
     public static class SimMathUtil
     {
-        public const float Deg2Rad = (float)(Math.PI / 180.0);
-        public const float Rad2Deg = (float)(180.0 / Math.PI);
+        // These route through DetMath so the simulation never touches the platform libm. Both the
+        // constants and the trig below are deterministic across OS/CPU/runtime.
+        public const float Deg2Rad = DetMath.Deg2Rad;
+        public const float Rad2Deg = DetMath.Rad2Deg;
 
         public static float Clamp(float v, float min, float max) => v < min ? min : (v > max ? max : v);
         public static float Clamp01(float v) => Clamp(v, 0f, 1f);
 
-        /// <summary>Angle in degrees of a direction vector.</summary>
-        public static float Angle(Vec2 dir) => (float)Math.Atan2(dir.Y, dir.X) * Rad2Deg;
+        /// <summary>Angle in degrees of a direction vector. Deterministic (no platform atan2).</summary>
+        public static float Angle(Vec2 dir) => DetMath.DegreesOf(dir);
 
-        /// <summary>Unit vector from a degree angle.</summary>
-        public static Vec2 FromAngle(float degrees)
-        {
-            float rad = degrees * Deg2Rad;
-            return new Vec2((float)Math.Cos(rad), (float)Math.Sin(rad));
-        }
+        /// <summary>Unit vector from a degree angle. Deterministic (no platform sin/cos).</summary>
+        public static Vec2 FromAngle(float degrees) => DetMath.DirFromDegrees(degrees);
     }
 }

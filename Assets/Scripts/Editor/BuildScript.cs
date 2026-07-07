@@ -30,6 +30,26 @@ namespace VoidRunner.EditorTools
         public static void BuildLinux() => Run(BuildTarget.StandaloneLinux64, "VoidRunner");
         public static void BuildWindows() => Run(BuildTarget.StandaloneWindows64, "VoidRunner.exe");
 
+        [MenuItem("VoidRunner/Build/WebGL (browser)")]
+        public static void BuildWebGLMenu() => BuildWebGL();
+
+        /// <summary>
+        /// Exports a browser-playable WebGL build. This is the embeddable live demo: the output is a
+        /// static site (index.html + Build/ + StreamingAssets with the content packs) that any static
+        /// host can serve and a portfolio can iframe. CI calls this via GameCI when a licence secret
+        /// is present. The build honours a <c>?seed=…</c> URL parameter (see GameController) so a
+        /// visitor can be linked straight into a specific seed or a replay.
+        /// </summary>
+        public static void BuildWebGL()
+        {
+            // WebGL loads content packs over HTTP from StreamingAssets, so a decompression fallback
+            // keeps it working on hosts that don't set the right Content-Encoding headers.
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+            PlayerSettings.WebGL.decompressionFallback = true;
+            PlayerSettings.runInBackground = true;
+            Run(BuildTarget.WebGL, "web");
+        }
+
         private static void Run(BuildTarget target, string exeName)
         {
             var scenes = Scenes;

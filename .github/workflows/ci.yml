@@ -10,15 +10,29 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# The deploy-demo job publishes the static browser demo to GitHub Pages; it needs these scopes.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   # ---------------------------------------------------------------------------------------------
   # The core check: compile and test VoidRunner's engine-agnostic simulation/content/replay core
-  # on a plain .NET SDK — no Unity licence required. Because the sim is UnityEngine-free, "these
-  # tests pass" means the deterministic game logic is correct on the CI machine.
+  # on a plain .NET SDK — no Unity licence required — across ubuntu, windows AND macos. Because the
+  # sim is UnityEngine-free AND uses only IEEE-deterministic float math (see DetMath), the SAME
+  # recorded replay must reproduce byte-for-bit on every OS. This matrix is what turns the README's
+  # "byte-identical on every machine" from a claim into a CI-enforced guarantee: each OS records a
+  # run and re-verifies the committed sample; the cross-os-consensus job then asserts all three
+  # produced the identical final-state hash.
   # ---------------------------------------------------------------------------------------------
   sim-tests:
-    name: Sim core — build & test (.NET, no Unity)
-    runs-on: ubuntu-latest
+    name: Sim core — build & test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,30 +48,161 @@ jobs:
       - name: Build
         run: dotnet build ci/HeadlessTests/HeadlessTests.csproj -c Release --no-restore
 
-      - name: Run unit tests
-        run: dotnet test ci/HeadlessTests/HeadlessTests.csproj -c Release --no-build --logger "console;verbosity=normal"
+      - name: Run unit tests with coverage
+        run: >
+          dotnet test ci/HeadlessTests/HeadlessTests.csproj -c Release --no-build
+          --collect:"XPlat Code Coverage"
+          --settings ci/HeadlessTests/coverlet.runsettings
+          --results-directory ci/HeadlessTests/TestResults
+          --logger "console;verbosity=normal"
 
       - name: Build vrverify CLI
         run: dotnet build tools/VrVerify/VrVerify.csproj -c Release
 
-      - name: End-to-end — record a replay against the shipped packs and verify it reproduces
+      # Record a deterministic run on THIS OS and print its final-state hash to the step summary and
+      # to an artifact, so the consensus job can compare hashes across all three operating systems.
+      - name: Determinism — record a fixed run and capture its final-state hash
+        shell: bash
         run: |
           BIN=tools/VrVerify/bin/Release/net8.0/vrverify.dll
           PACKS=Assets/StreamingAssets/ContentPacks
           dotnet "$BIN" info "$PACKS"
-          dotnet "$BIN" record "$PACKS" CI-SEED 2400 /tmp/ci.vrplay
-          dotnet "$BIN" verify "$PACKS" /tmp/ci.vrplay
+          dotnet "$BIN" record "$PACKS" CI-SEED 2400 ci-run.vrplay
+          dotnet "$BIN" verify "$PACKS" ci-run.vrplay
           echo "Also verifying the committed sample replay:"
           dotnet "$BIN" verify "$PACKS" docs/samples/cosmic-drift.vrplay
+          # Extract the final-state hash from the freshly recorded replay for cross-OS comparison.
+          HASH=$(grep -o '"finalStateHash":"[0-9]*"' ci-run.vrplay | grep -o '[0-9]*')
+          echo "OS ${{ matrix.os }} finalStateHash = $HASH"
+          echo "$HASH" > "hash-${{ matrix.os }}.txt"
+
+      - name: Upload determinism hash
+        uses: actions/upload-artifact@v4
+        with:
+          name: hash-${{ matrix.os }}
+          path: hash-${{ matrix.os }}.txt
+
+      - name: Upload coverage (ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: ci/HeadlessTests/TestResults/**/coverage.cobertura.xml
 
   # ---------------------------------------------------------------------------------------------
-  # Optional full Unity player build via GameCI. This needs a free Unity Personal licence supplied
-  # as repo secrets (UNITY_EMAIL / UNITY_PASSWORD / UNITY_LICENSE). The job is skipped automatically
-  # when the secret is absent, so forks and the default repo stay green without any paid/licensed
-  # infrastructure. See docs/BUILDING.md for how to enable it.
+  # Cross-OS consensus: fail unless ubuntu, windows and macos all produced the identical final-state
+  # hash for the same fixed run. This is the load-bearing test for the determinism pitch.
+  # ---------------------------------------------------------------------------------------------
+  cross-os-consensus:
+    name: Determinism — cross-OS hash consensus
+    runs-on: ubuntu-latest
+    needs: sim-tests
+    steps:
+      - name: Download all hashes
+        uses: actions/download-artifact@v4
+        with:
+          pattern: hash-*
+          merge-multiple: true
+
+      - name: Assert every OS agrees to the bit
+        run: |
+          echo "Per-OS final-state hashes:"
+          cat hash-*.txt
+          UNIQUE=$(sort -u hash-*.txt | wc -l)
+          if [ "$UNIQUE" -ne 1 ]; then
+            echo "::error::Determinism BROKEN — operating systems disagree on the final-state hash."
+            exit 1
+          fi
+          echo "✓ All operating systems produced the identical final-state hash: $(head -1 hash-ubuntu-latest.txt)"
+
+  # ---------------------------------------------------------------------------------------------
+  # Coverage badge/report. Turns the Cobertura report from the ubuntu run into a human-readable
+  # summary in the job log (and is where a Codecov/coveralls upload would hook in). Never fails the
+  # build on its own.
+  # ---------------------------------------------------------------------------------------------
+  coverage-report:
+    name: Coverage report
+    runs-on: ubuntu-latest
+    needs: sim-tests
+    steps:
+      - name: Download coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage
+          path: coverage
+
+      - name: Summarise line coverage
+        run: |
+          FILE=$(find coverage -name 'coverage.cobertura.xml' | head -1)
+          echo "Coverage report: $FILE"
+          RATE=$(grep -o 'line-rate="[0-9.]*"' "$FILE" | head -1 | grep -o '[0-9.]*')
+          PCT=$(awk "BEGIN { printf \"%.1f\", $RATE * 100 }")
+          echo "Line coverage: ${PCT}%"
+          echo "### 🧪 Sim core line coverage: ${PCT}%" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------------------------
+  # JS↔C# parity + static demo build. Asserts the pure-JavaScript core (web/voidrunner-core.js)
+  # reproduces the C# simulation bit-for-bit against the committed golden vectors AND re-verifies a
+  # C#-recorded replay in JS, then builds the self-contained browser demo bundle and uploads it.
+  # This is what makes the embeddable live demo trustworthy: the browser really runs the same game.
+  # ---------------------------------------------------------------------------------------------
+  js-parity-and-demo:
+    name: JS core parity + build live demo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: JS↔C# determinism parity (bit-for-bit)
+        run: node web/parity.test.mjs
+
+      - name: Build self-contained static demo
+        run: node web/build.mjs
+
+      - name: Upload live demo bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: voidrunner-web-demo
+          path: web/dist
+
+      - name: Upload demo as a Pages artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  # ---------------------------------------------------------------------------------------------
+  # Publish the browser demo to GitHub Pages on every push to main, giving the portfolio a real,
+  # always-current live URL (https://xj16.github.io/voidrunner/). Enable Pages once in the repo
+  # settings (Source: GitHub Actions); until then this job is a harmless no-op if Pages is off.
+  # ---------------------------------------------------------------------------------------------
+  deploy-demo:
+    name: Deploy live demo to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: js-parity-and-demo
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+  # ---------------------------------------------------------------------------------------------
+  # Optional full Unity player + WebGL build via GameCI. This needs a free Unity Personal licence
+  # supplied as repo secrets (UNITY_EMAIL / UNITY_PASSWORD / UNITY_LICENSE). The job is skipped
+  # automatically when the secret is absent, so forks and the default repo stay green without any
+  # paid/licensed infrastructure. See docs/BUILDING.md for how to enable it.
   # ---------------------------------------------------------------------------------------------
   unity-build:
-    name: Unity player build (optional, needs free licence secret)
+    name: Unity player + WebGL build (optional, needs free licence secret)
     runs-on: ubuntu-latest
     needs: sim-tests
     if: ${{ github.event_name == 'push' }}
@@ -109,10 +254,24 @@ jobs:
           unityVersion: 2022.3.40f1
           buildMethod: VoidRunner.EditorTools.BuildScript.BuildLinux
 
-      - name: Upload player artifact
+      # Export a browser-playable WebGL build. This is what makes the game an embeddable live demo:
+      # the artifact is a static site you can host (GitHub Pages / any static host) and iframe.
+      - name: Build WebGL player
+        if: steps.gate.outputs.enabled == 'true'
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: WebGL
+          unityVersion: 2022.3.40f1
+          buildMethod: VoidRunner.EditorTools.BuildScript.BuildWebGL
+
+      - name: Upload player artifacts
         if: steps.gate.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: VoidRunner-Linux
+          name: VoidRunner-builds
           path: build
           if-no-files-found: ignore

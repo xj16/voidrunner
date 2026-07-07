@@ -95,6 +95,43 @@ namespace VoidRunner.Gameplay
             _renderer = new SimRenderer(_entityRoot, _sprites, _registry);
             _menuSeedField = startSeed;
             _state = State.Menu;
+
+            // Deep-link support for the embeddable WebGL demo: a URL like
+            //   index.html?seed=COSMIC-DRIFT      → boots straight into that seed
+            //   index.html?daily=1                → boots the seed-of-the-day
+            // lets a portfolio link a visitor into an exact run with zero clicks. Harmless off the web.
+            TryHandleUrlParams();
+        }
+
+        /// <summary>Parses the launch URL (WebGL) for a seed/daily deep-link and auto-starts a run.</summary>
+        private void TryHandleUrlParams()
+        {
+            string url = Application.absoluteURL;
+            if (string.IsNullOrEmpty(url) || url.IndexOf('?') < 0) return;
+
+            string query = url.Substring(url.IndexOf('?') + 1);
+            string seedParam = null;
+            bool daily = false;
+            foreach (var pair in query.Split('&'))
+            {
+                int eq = pair.IndexOf('=');
+                string key = eq >= 0 ? pair.Substring(0, eq) : pair;
+                string val = eq >= 0 ? Uri.UnescapeDataString(pair.Substring(eq + 1)) : "";
+                if (key == "seed") seedParam = val;
+                else if (key == "daily" && (val == "1" || val == "true")) daily = true;
+            }
+
+            if (daily)
+            {
+                var now = DateTime.UtcNow;
+                _menuSeedField = VoidRunner.Meta.DailySeed.LabelFor(now.Year, now.Month, now.Day);
+                StartRunFromField();
+            }
+            else if (!string.IsNullOrEmpty(seedParam))
+            {
+                _menuSeedField = seedParam;
+                StartRunFromField();
+            }
         }
 
         // -----------------------------------------------------------------------------------------
@@ -227,8 +264,11 @@ namespace VoidRunner.Gameplay
         private void FollowCamera()
         {
             if (_sim == null || _sim.CurrentRoom == null) return;
-            // Keep the room centred; clamp camera so the whole room stays framed.
-            _camera.transform.position = new Vector3(0, 0, -10);
+            // Keep the room centred; clamp camera so the whole room stays framed. A view-only
+            // screenshake offset (from the renderer) is layered on top for hit feedback — it never
+            // affects the simulation.
+            Vector3 shake = _renderer != null ? _renderer.ShakeOffset() : Vector3.zero;
+            _camera.transform.position = new Vector3(shake.x, shake.y, -10);
             float targetSize = Mathf.Max(_sim.CurrentRoom.height * 0.5f + 1f,
                                           (_sim.CurrentRoom.width * 0.5f + 1f) / _camera.aspect);
             _camera.orthographicSize = Mathf.Lerp(_camera.orthographicSize, targetSize, Time.deltaTime * 4f);
